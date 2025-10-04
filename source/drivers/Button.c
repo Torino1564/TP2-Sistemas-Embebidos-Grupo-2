@@ -4,10 +4,14 @@
  *  Created on: Sep 3, 2025
  *      Author: jtori
  */
+
+
 #include "Button.h"
 #include <stdlib.h>
 #include <string.h>
 #include "Timer.h"
+#include "gpio.h"
+#include "board.h"
 
 #define START_MAX_BUTTON_COUNT (int)8;
 
@@ -23,7 +27,6 @@ typedef struct
 	uint8_t isrType;
 
 	uint8_t state;
-	bool voltageState;
 	ticks holdTickInterval;
 	ticks ticksPicture;
 	ticks debouncingTickInterval;
@@ -34,31 +37,10 @@ static Button* buttonArray;
 
 void ButtonISR(void* user_data)
 {
-	Button* pButton = (Button*)(user_data);
-
 	if (semaphore)
 		return;
 
-	if((pButton->voltageState && pButton->inputMode == INPUT_PULLDOWN) || (!pButton->voltageState && pButton->inputMode == INPUT_PULLUP))
-	{
-		pButton->ticksPicture = Now();
-		pButton->voltageState = !pButton->voltageState;
-	}
-	else
-	{
-		ticks now = Now();
-		if(now - pButton->ticksPicture >= pButton->holdTickInterval)
-		{
-			pButton->state = BUTTON_HELD;
-
-		}
-		else
-		{
-			pButton->state = BUTTON_PRESSED;
-
-		}
-		pButton->voltageState = pButton->inputMode == INPUT_PULLDOWN;
-	}
+	Button* pButton = (Button*)(user_data);
 
 	gpioSetupISR(pButton->pin, NO_INT, &ButtonISR, pButton);
 	TimerSetEnable(pButton->debouncingIsrId, true);
@@ -69,8 +51,33 @@ void DebouncingISR(void* user_data)
 	if (semaphore)
 		return;
 
-
 	Button* pButton = (Button*)(user_data);
+
+	bool pinStatus = gpioRead(pButton->pin);
+
+	if((pinStatus && pButton->inputMode == INPUT_PULLDOWN) || (!pinStatus && pButton->inputMode == INPUT_PULLUP))
+	{
+		pButton->ticksPicture = Now();
+	}
+	else
+	{
+		ticks now = Now();
+		if(now - pButton->ticksPicture >= pButton->holdTickInterval * 3)
+		{
+			pButton->state = BUTTON_LONG_HELD;
+		}
+		else if((now - pButton->ticksPicture >= pButton->holdTickInterval) && (now - pButton->ticksPicture < pButton->holdTickInterval * 3))
+		{
+			pButton->state = BUTTON_HELD;
+		}
+		else
+		{
+			pButton->state = BUTTON_PRESSED;
+			gpioToggle(PIN_LED_RED);
+		}
+	}
+
+
 	gpioSetupISR(pButton->pin, pButton->isrType, &ButtonISR, pButton);
 	TimerSetEnable(pButton->debouncingIsrId,false);
 }
@@ -98,17 +105,16 @@ uint16_t NewButton(pin_t pin, bool activeHigh)
 
 	pButton->pin = pin;
 	pButton->inputMode = activeHigh ? INPUT_PULLDOWN : INPUT_PULLUP;
-	pButton->isrType = activeHigh ? FLAG_INT_POSEDGE : FLAG_INT_NEGEDGE;
-	pButton->voltageState = activeHigh;
+	pButton->isrType = FLAG_INT_EDGE;
 	pButton->debouncingTickInterval = 0;
 	pButton->debouncingIsrId = 0;
 	pButton->state = BUTTON_IDLE;
-	pButton->debouncingIsrId = TimerRegisterPeriodicInterruption(&DebouncingISR, MS_TO_TICKS(0.25), pButton);
+	pButton->debouncingIsrId = TimerRegisterPeriodicInterruption(&DebouncingISR, MS_TO_TICKS(4), pButton);
 	pButton->holdTickInterval = MS_TO_TICKS(1000);
 	TimerSetEnable(pButton->debouncingIsrId, false);
 
 	gpioMode(pButton->pin, pButton->inputMode);
-	//gpioSetSlewRate(pButton->pin, 1); // 1 es low slew rate
+	gpioSetSlewRate(pButton->pin, 1); // 1 es low slew rate
 	gpioSetupISR(pButton->pin, pButton->isrType, &ButtonISR, &buttonArray[buttonId]);
 
 	return buttonId;
