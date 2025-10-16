@@ -13,6 +13,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
+
+#include "gpio.h" // Este include es para la estructura pin_t
 
 #include "gpio.h"
 
@@ -33,7 +36,7 @@
  * FUNCTION PROTOTYPES WITH GLOBAL SCOPE
  ******************************************************************************/
 
-typedef int16_t SUART_Handle;
+typedef int8_t SUART_Handle;
 
 SUART_Handle SUART_Init (pin_t rx, pin_t tx, uint16_t baudRate);
 SUART_Handle SUART_InitEx (pin_t rx, pin_t tx, uint16_t baudRate, uint8_t numDataBits, bool parity);
