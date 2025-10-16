@@ -1,5 +1,5 @@
 #include "SUART.h"
-
+#include <stdlib.h>
 /*
  * This driver keeps track of its objects and is responsible for their lifetime.
  * The init functions return handles to Instaciated objects
@@ -15,13 +15,13 @@ typedef struct {
 	bool parity;
 } SUART;
 
-static SUART* pInstances[MAX_SUART_INSTANCES] = {};
+static SUART* instances[MAX_SUART_INSTANCES] = {};
 
 SUART_Handle SUART_InitEx (pin_t rx, pin_t tx, uint16_t baudRate, uint8_t numDataBits, bool parity)
 {
 	for (uint8_t i = 0; i < MAX_SUART_INSTANCES; i++)
 	{
-		if (instances[i] != NULL)
+		if (instances[i] != 0)
 			continue;
 		SUART* pNew = (SUART*)malloc(sizeof(SUART));
 		pNew->rx = rx;
@@ -37,7 +37,7 @@ SUART_Handle SUART_InitEx (pin_t rx, pin_t tx, uint16_t baudRate, uint8_t numDat
 
 SUART_Handle SUART_Init (pin_t rx, pin_t tx, uint16_t baudRate)
 {
-	return SUART_InitEx(rx, tx, baudRate, 8, FALSE);
+	return SUART_InitEx(rx, tx, baudRate, 8, 0);
 }
 
 void SUART_Delete(SUART_Handle handle)

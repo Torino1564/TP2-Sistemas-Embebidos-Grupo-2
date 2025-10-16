@@ -46,6 +46,29 @@ void gpioSetUserData(pin_t pin, void* user_data)
 	callbackMatrix[pin].user_data = user_data;
 }
 
+void gpioMux(pin_t pin, uint8_t mux)
+{
+	// ubico el valor de mux en los bits mux del pcr
+	uint32_t portMuxValue = (mux << PORT_PCR_MUX_SHIFT);
+
+	// obtengo un arreglo de punteros a pin
+	static PORT_Type * const portBase[] = PORT_BASE_PTRS;
+
+	// en el mux del pcr del pin completo con el valor del mux obtenido
+	portBase[PIN2PORT(pin)]->PCR[PIN2NUM(pin)] = (portBase[PIN2PORT(pin)]->PCR[PIN2NUM(pin)] & ~PORT_PCR_MUX_MASK) | portMuxValue;
+}
+
+void gpioPullRes(pin_t pin, bool enablePullRes, bool pullUp)
+{
+	uint32_t portValue = (((uint32_t)enablePullRes) << PORT_PCR_PE_SHIFT) | (((uint32_t)pullUp) << PORT_PCR_PS_SHIFT);
+	uint32_t portMask = PORT_PCR_PE_MASK | PORT_PCR_PS_MASK;
+
+	// obtengo un arreglo de punteros a pin
+	static PORT_Type * const portBase[] = PORT_BASE_PTRS;
+
+	portBase[PIN2PORT(pin)]->PCR[PIN2NUM(pin)] = (portBase[PIN2PORT(pin)]->PCR[PIN2NUM(pin)] & ~portMask) | (portValue & portMask);
+}
+
 void gpioMode (pin_t pin, uint8_t mode)
 {
 	uint32_t portValue = mode | (1<<PORT_PCR_MUX_SHIFT); // el valor que debo ingresar al port
@@ -75,9 +98,9 @@ void gpioWrite (pin_t pin, bool value)
 
 	static PORT_Type * const portBase[] = PORT_BASE_PTRS;
 
-	uint32_t perisferic = portBase[PIN2PORT(pin)]->PCR[PIN2NUM(pin)] & PORT_PCR_MUX_MASK;
-	perisferic = perisferic >> PORT_PCR_MUX_SHIFT;
-	if(!(perisferic == 0b001))
+	uint32_t periferic = portBase[PIN2PORT(pin)]->PCR[PIN2NUM(pin)] & PORT_PCR_MUX_MASK;
+	periferic = periferic >> PORT_PCR_MUX_SHIFT;
+	if(!(periferic == 0b001))
 	{
 		return; // si el puerto no esta configurado como gpio saltea el resto
 	}
@@ -95,9 +118,9 @@ void gpioToggle (pin_t pin)
 {
 	static PORT_Type * const portBase[] = PORT_BASE_PTRS;
 
-	uint32_t perisferic = portBase[PIN2PORT(pin)]->PCR[PIN2NUM(pin)] & PORT_PCR_MUX_MASK;
-	perisferic = perisferic >> PORT_PCR_MUX_SHIFT;
-	if(!(perisferic == 0b001))
+	uint32_t periferic = portBase[PIN2PORT(pin)]->PCR[PIN2NUM(pin)] & PORT_PCR_MUX_MASK;
+	periferic = periferic >> PORT_PCR_MUX_SHIFT;
+	if(!(periferic == 0b001))
 	{
 		return; // si el puerto no esta configurado como gpio saltea el resto
 	}
@@ -126,9 +149,9 @@ void gpioSetSlewRate(pin_t pin, bool slewRateLow)
 {
 	static PORT_Type * const portBase[] = PORT_BASE_PTRS;
 
-	uint32_t perisferic = portBase[PIN2PORT(pin)]->PCR[PIN2NUM(pin)] & PORT_PCR_MUX_MASK;
-	perisferic = perisferic >> PORT_PCR_MUX_SHIFT;
-	if(!(perisferic == 0b001))
+	uint32_t periferic = portBase[PIN2PORT(pin)]->PCR[PIN2NUM(pin)] & PORT_PCR_MUX_MASK;
+	periferic = periferic >> PORT_PCR_MUX_SHIFT;
+	if(!(periferic == 0b001))
 	{
 		return; // si el puerto no esta configurado como gpio saltea el resto
 	}

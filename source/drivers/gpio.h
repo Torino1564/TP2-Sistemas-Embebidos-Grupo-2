@@ -39,7 +39,6 @@ enum { PA, PB, PC, PD, PE };
 #endif // INPUT
 
 // IRQC modes
-
 #ifndef IRQCMODES
 #define IRQCMODES
 #define NO_INT				0b0000
@@ -53,6 +52,17 @@ enum { PA, PB, PC, PD, PE };
 #define FLAG_INT_EDGE		0b1011
 #endif
 
+// MUX alternatives
+#ifndef MUXALT
+#define ALT0				0b000
+#define ALT1				0b001
+#define ALT2				0b010
+#define ALT3				0b011
+#define ALT4				0b100
+#define ALT5				0b101
+#define ALT6				0b110
+#define ALT7				0b111
+#endif
 
 // Digital values
 #ifndef LOW
@@ -78,6 +88,12 @@ typedef uint8_t pin_t;
  * @brief Enables the hardware interruption support
  */
 void gpioInitInterrupts();
+
+// Esta funcion recibe el valor de mux que debe colocar en el PCR del pin @param pin
+void gpioMux(pin_t pin, uint8_t mux);
+
+// Esta funcion recibe el pin, si hay que habilitar o deshabilitar las pull, y si es pullup o pulldown
+void gpioPullRes(pin_t pin, bool enablePullRes, bool pullUp);
 
 /**
  * @brief Configures the specified pin to behave either as an input or an output
