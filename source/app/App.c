@@ -38,8 +38,6 @@ void App_Init (void)
 {
 	TimerInit();
 
-
-
 	// Uart 3 Configuration
 	{
 		UART_Config uart_config = {};
@@ -63,15 +61,14 @@ void App_Init (void)
 
 		uart4 = UART_Init(&uart_config);
 	}
-
 }
 
 /* Función que se llama constantemente en un ciclo infinito */
 void App_Run (void)
 {
-	uint8_t sent = 'a';
+	const char* sent = "Testing";
 	Sleep(MS_TO_TICKS(100));
-	UART_PutChar(uart4, sent);
+	UART_WriteData(uart4, (uint8_t*)sent, strlen(sent));
 	//Sleep(MS_TO_TICKS(50));
 	uint8_t result = UART_GetChar(uart3);
 	if (sent == result)

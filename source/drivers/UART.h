@@ -46,6 +46,8 @@ UART_Handle UART_Init(UART_Config* pConfig);
 char UART_GetChar(UART_Handle handle);
 void UART_PutChar(UART_Handle handle, uint8_t c);
 
+bool UART_WriteData(UART_Handle handle, const uint8_t* pData, uint8_t size);
+
 void UART_Delete(UART_Handle handle);
 
 #endif /* DRIVERS_UART_H_ */
