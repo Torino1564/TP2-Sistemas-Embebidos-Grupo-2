@@ -196,7 +196,7 @@ UART_Handle UART_Init(UART_Config* pConfig)
 	pUART->config = *pConfig;
 
 	uint64_t uart_module_clock = BUS_CLOCK;
-	SIM_SOPT2_USBSRC
+
 	// Enable Clock Gating and interrupts
 
 	switch (pConfig->uartNum)

@@ -92,7 +92,8 @@ void App_Run (void)
 	if (Now() - prev > MS_TO_TICKS(1000))
 	{
 		prev = Now();
-		UART_PutChar(uart0, 'a');
+		UART_WriteString(uart0, "A");
+		//UART_PutChar(uart0, 'a');
 	}
 
 	if (UART_PollNewData(uart0) > 0)
