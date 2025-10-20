@@ -39,7 +39,7 @@ void App_Init (void)
 {
 
 	TimerInit();
-
+	gpioMode(PORTNUM2PIN(PC, 17), OUTPUT);
 	//NVIC_SetPriority(UART4_RX_TX_IRQn, 5);
 	//NVIC_SetPriority(UART3_RX_TX_IRQn, 6);
 	SIM->CLKDIV2 |= SIM_CLKDIV2_USBDIV(1);
@@ -80,20 +80,27 @@ void App_Init (void)
 	}
 }
 
-static char buffer[128] = {};
-static uint16_t buffer_offset = 0;
-char* view = buffer;
+uint8_t buffer [128];
 
 /* Función que se llama constantemente en un ciclo infinito */
 void App_Run (void)
 {
 	static ticks prev = 0;
 
-	if (Now() - prev > MS_TO_TICKS(1000))
+	if (Now() - prev > MS_TO_TICKS(100))
 	{
 		prev = Now();
-		UART_WriteString(uart0, "A");
-		//UART_PutChar(uart0, 'a');
+		uint8_t address = 1;
+		char angle = 'Y';
+		float value = prev % 90;
+
+		buffer[0] = 0xAA;
+		memcpy(buffer, &address, 1);
+		memcpy(buffer + 2, &angle, 1);
+		memcpy(buffer + 3, &value, sizeof(float));
+
+		UART_WriteString(uart0, "Begin:Group:3Y:32.123");
+		//UART_WriteData(uart0, buffer, 7);
 	}
 
 	if (UART_PollNewData(uart0) > 0)

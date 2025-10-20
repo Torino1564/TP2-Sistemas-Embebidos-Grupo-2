@@ -36,7 +36,7 @@ typedef struct {
 static UART* modules[MAX_UART_MODULES];
 static UART_Type* configRegisters[MAX_UART_MODULES] = UART_BASE_PTRS;
 
-#define CORE_CLOCK 		120000000
+#define CORE_CLOCK 		100000000
 #define SYSTEM_CLOCK 	CORE_CLOCK
 #define BUS_CLOCK 		CORE_CLOCK / 2
 
