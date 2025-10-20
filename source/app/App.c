@@ -30,13 +30,30 @@
  *                           FUNCIONES GLOBALES
  ******************************************************************************/
 
+static UART_Handle uart0;
 static UART_Handle uart3;
 static UART_Handle uart4;
 
 /* Función de inicialización */
 void App_Init (void)
 {
+
 	TimerInit();
+
+	//NVIC_SetPriority(UART4_RX_TX_IRQn, 5);
+	//NVIC_SetPriority(UART3_RX_TX_IRQn, 6);
+	SIM->CLKDIV2 |= SIM_CLKDIV2_USBDIV(1);
+	// UART 0 config
+	{
+		UART_Config uart_config = {};
+		uart_config.baudRate = 9600;
+		uart_config.tx = PORTNUM2PIN(PB, 17);
+		uart_config.rx = PORTNUM2PIN(PB, 16);
+		uart_config.uartNum = 0;
+		uart_config.mode = UART_TRANSCEIVER;
+
+		uart0 = UART_Init(&uart_config);
+	}
 
 	// Uart 3 Configuration
 	{
@@ -50,7 +67,7 @@ void App_Init (void)
 		uart3 = UART_Init(&uart_config);
 	}
 
-	// Uart 0 Configuration
+	// Uart 4 Configuration
 	{
 		UART_Config uart_config = {};
 		uart_config.baudRate = 9600;
@@ -63,22 +80,30 @@ void App_Init (void)
 	}
 }
 
+static char buffer[128] = {};
+static uint16_t buffer_offset = 0;
+char* view = buffer;
+
 /* Función que se llama constantemente en un ciclo infinito */
 void App_Run (void)
 {
-	const char* sent = "Testing";
-	Sleep(MS_TO_TICKS(100));
-	UART_WriteData(uart4, (uint8_t*)sent, strlen(sent));
-	//Sleep(MS_TO_TICKS(50));
-	uint8_t result = UART_GetChar(uart3);
-	if (sent == result)
+	static ticks prev = 0;
+
+	if (Now() - prev > MS_TO_TICKS(1000))
 	{
-		Sleep(MS_TO_TICKS(100));
+		prev = Now();
+		UART_PutChar(uart0, 'a');
 	}
-	else
+
+	if (UART_PollNewData(uart0) > 0)
 	{
-		Sleep(MS_TO_TICKS(100));
+		char retval;
+		uint16_t size;
+		bool err;
+		UART_GetData(uart0, &retval, &size, &err);
+		Sleep(1);
 	}
+
 }
 
 /*******************************************************************************

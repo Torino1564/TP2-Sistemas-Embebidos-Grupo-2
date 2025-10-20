@@ -21,6 +21,7 @@ enum UART_Mode {
 };
 
 typedef struct {
+	bool skipPinSetup;
 	pin_t rx;
 	pin_t tx;
 	pin_t cts;
@@ -43,10 +44,15 @@ typedef struct {
 
 UART_Handle UART_Init(UART_Config* pConfig);
 
-char UART_GetChar(UART_Handle handle);
-void UART_PutChar(UART_Handle handle, uint8_t c);
+uint16_t UART_PollNewData(UART_Handle handle);
 
+char UART_GetChar(UART_Handle handle);
+bool UART_GetData(UART_Handle handle, uint8_t* pFillData, uint16_t* size, bool* err);
+
+void UART_PutChar(UART_Handle handle, uint8_t c);
 bool UART_WriteData(UART_Handle handle, const uint8_t* pData, uint8_t size);
+bool UART_WriteString(UART_Handle handle, const char* str);
+
 
 void UART_Delete(UART_Handle handle);
 

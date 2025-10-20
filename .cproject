@@ -232,9 +232,6 @@
 							<tool id="com.crt.advproject.tool.debug.debug.423927174" name="MCU Debugger" superClass="com.crt.advproject.tool.debug.debug"/>
 						</toolChain>
 					</folderInfo>
-					<fileInfo id="com.crt.advproject.config.exe.debug.1284265667.1686828117" name="i2c.c" rcbsApplicability="disable" resourcePath="source/drivers/i2c.c" toolsToInvoke="com.crt.advproject.gcc.exe.debug.1546198014.1080127475">
-						<tool id="com.crt.advproject.gcc.exe.debug.1546198014.1080127475" name="MCU C Compiler" superClass="com.crt.advproject.gcc.exe.debug.1546198014"/>
-					</fileInfo>
 					<fileInfo id="com.crt.advproject.config.exe.debug.1284265667.749798210" name="Button.h" rcbsApplicability="disable" resourcePath="source/drivers/Button.h" toolsToInvoke=""/>
 					<fileInfo id="com.crt.advproject.config.exe.debug.1284265667.1255603006" name="SysTick.c" rcbsApplicability="disable" resourcePath="source/drivers/SysTick.c" toolsToInvoke="com.crt.advproject.gcc.exe.debug.1546198014.1732257500">
 						<tool id="com.crt.advproject.gcc.exe.debug.1546198014.1732257500" name="MCU C Compiler" superClass="com.crt.advproject.gcc.exe.debug.1546198014">

@@ -28,6 +28,7 @@ typedef struct {
 
 	bool transmitting;
 
+	bool receiverOverflow;
 	bool newData;
 	uint8_t newDataByteSize;
 } UART;
@@ -36,11 +37,12 @@ static UART* modules[MAX_UART_MODULES];
 static UART_Type* configRegisters[MAX_UART_MODULES] = UART_BASE_PTRS;
 
 #define CORE_CLOCK 		120000000
-#define SYSTEM_CLOCK 	CORE_CLOCK / 2
+#define SYSTEM_CLOCK 	CORE_CLOCK
 #define BUS_CLOCK 		CORE_CLOCK / 2
 
 #define DEFAULT_BUFFER_SIZE 64u
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) < (b) ? (b) : (a))
 
 static void UART_TransmitBuffer_Impl(uint8_t numUart)
 {
@@ -78,7 +80,7 @@ static void UART_TransmitBuffer_Impl(uint8_t numUart)
 		uint8_t allowed_to_send = MIN(remaining_to_send, pUART->txFifoSize - pUCR->TCFIFO);
 
 		// Wait for the data shift register to be empty
-		while(!(*s1 & UART_S1_TDRE_MASK)) {}
+		//while(!(*s1 & UART_S1_TDRE_MASK)) {}
 
 		// Send each byte to the fifo one by one, waiting for the register to be ready each time
 		for (int i = 0; i < allowed_to_send; i++)
@@ -91,7 +93,7 @@ static void UART_TransmitBuffer_Impl(uint8_t numUart)
 		pUART->transmitBufferPointer = (transmitPointer + allowed_to_send) % bufferSize;
 		pUART->availableBytes = available_bytes + allowed_to_send;
 
-		if (transmitPointer != transmitBarrier)
+		if (pUART->transmitBufferPointer != transmitBarrier)
 		{
 			pUCR->C2 |= UART_C2_TIE(1);
 		}
@@ -123,10 +125,20 @@ static void UARTX_RX_TX_IRQImpl(uint8_t numUart)
 		UART_TransmitBuffer_Impl(numUart);
 	}
 	// Received data interrupt
-	else if (s1 & UART_S1_RDRF_MASK)
+	if (s1 & UART_S1_RDRF_MASK)
 	{
 		// TODO: FIX
-		pUART->pReceiveBuffer[pUART->receiveBufferPointer++] = pUCR->D;
+		uint8_t bytesInFifo = pUCR->RCFIFO;
+		for (uint8_t i = 0; i < bytesInFifo; i++)
+		{
+			uint16_t index = (pUART->receiveBufferPointer + i) % pUART->config.receiveBufferSize;
+			pUART->pReceiveBuffer[index] = pUCR->D;
+		}
+		pUART->receiveBufferPointer = (pUART->receiveBufferPointer + bytesInFifo)% pUART->config.receiveBufferSize;
+		pUART->newData = 1;
+		if (pUART->newDataByteSize > pUART->config.receiveBufferSize)
+			pUART->receiverOverflow = true;
+		pUART->newDataByteSize = MIN(pUART->newDataByteSize + bytesInFifo, pUART->config.receiveBufferSize);
 	}
 }
 
@@ -161,33 +173,21 @@ UART_Handle UART_Init(UART_Config* pConfig)
 		return -1;
 	}
 
-	// TODO: This should not be here
-	SIM->CLKDIV1 = SIM_CLKDIV1_OUTDIV1(1)  // Divide core/system by 2
-	              | SIM_CLKDIV1_OUTDIV2(1)  // Divide bus by 2
-	              | SIM_CLKDIV1_OUTDIV4(3); // Divide flash by 4 → 30 MHz
-
-
 	// Pin Configuration
-	gpioMode(pConfig->rx, INPUT);
-	gpioMux(pConfig->rx, 3);
-	gpioMode(pConfig->tx, OUTPUT);
-	gpioMux(pConfig->tx, 3);
-
-	if (pConfig->cts != 0)
-		gpioMux(pConfig->cts, 3);
-	if (pConfig->rts != 0)
-		gpioMux(pConfig->rts, 3);
-
-	if (pConfig->uartNum == 0)
+	if (!pConfig->skipPinSetup)
 	{
-		if (pConfig->cts == PORTNUM2PIN(PA, 0))
-			gpioMux(pConfig->cts, 2);
-		if (pConfig->rx == PORTNUM2PIN(PA, 1))
-			gpioMux(pConfig->rx, 2);
-		if (pConfig->tx == PORTNUM2PIN(PA, 2))
-			gpioMux(pConfig->tx, 2);
-		if (pConfig->rts == PORTNUM2PIN(PA, 3))
-			gpioMux(pConfig->rts, 2);
+		//gpioMode(pConfig->rx, INPUT);
+		gpioMux(pConfig->rx, 3);
+		//gpioMode(pConfig->tx, OUTPUT);
+		gpioMux(pConfig->tx, 3);
+
+		if (pConfig->uartNum == 0)
+		{
+			if (pConfig->rx == PORTNUM2PIN(PA, 1))
+				gpioMux(pConfig->rx, 2);
+			if (pConfig->tx == PORTNUM2PIN(PA, 2))
+				gpioMux(pConfig->tx, 2);
+		}
 	}
 
 	// Register UART in driver
@@ -196,42 +196,46 @@ UART_Handle UART_Init(UART_Config* pConfig)
 	pUART->config = *pConfig;
 
 	uint64_t uart_module_clock = BUS_CLOCK;
-
-	SIM->SCGC4 |= SIM_SCGC4_UART0(1);
-
+	SIM_SOPT2_USBSRC
 	// Enable Clock Gating and interrupts
 
 	switch (pConfig->uartNum)
 	{
 	case 0:
 			SIM->SCGC4 |= SIM_SCGC4_UART0(1);
-			SIM->SOPT5 &= ~(SIM_SOPT5_UART0TXSRC_MASK | SIM_SOPT5_UART0RXSRC_MASK);
-			SIM->SOPT5 |= (SIM_SOPT5_UART0TXSRC(1) | SIM_SOPT5_UART0RXSRC(1));
+			//SIM->SOPT5 &= ~(SIM_SOPT5_UART0TXSRC_MASK | SIM_SOPT5_UART0RXSRC_MASK);
+			//SIM->SOPT5 |= (SIM_SOPT5_UART0TXSRC(1) | SIM_SOPT5_UART0RXSRC(1));
 			uart_module_clock = SYSTEM_CLOCK;
 			NVIC_EnableIRQ(UART0_RX_TX_IRQn);
+			NVIC_EnableIRQ(UART0_ERR_IRQn);
 			break;
 	case 1:
 			SIM->SCGC4 |= SIM_SCGC4_UART1(1);
-			SIM->SOPT5 &= ~(SIM_SOPT5_UART1TXSRC_MASK | SIM_SOPT5_UART1RXSRC_MASK);
-			SIM->SOPT5 |= (SIM_SOPT5_UART1TXSRC(1) | SIM_SOPT5_UART1RXSRC(1));
+			//SIM->SOPT5 &= ~(SIM_SOPT5_UART1TXSRC_MASK | SIM_SOPT5_UART1RXSRC_MASK);
+			//SIM->SOPT5 |= (SIM_SOPT5_UART1TXSRC(1) | SIM_SOPT5_UART1RXSRC(1));
 			uart_module_clock = SYSTEM_CLOCK;
 			NVIC_EnableIRQ(UART1_RX_TX_IRQn);
+			NVIC_EnableIRQ(UART1_ERR_IRQn);
 			break;
 	case 2:
 			SIM->SCGC4 |= SIM_SCGC4_UART2(1);
 			NVIC_EnableIRQ(UART2_RX_TX_IRQn);
+			NVIC_EnableIRQ(UART2_ERR_IRQn);
 			break;
 	case 3:
 			SIM->SCGC4 |= SIM_SCGC4_UART3(1);
 			NVIC_EnableIRQ(UART3_RX_TX_IRQn);
+			NVIC_EnableIRQ(UART3_ERR_IRQn);
 			break;
 	case 4:
 			SIM->SCGC1 |= SIM_SCGC1_UART4(1);
 			NVIC_EnableIRQ(UART4_RX_TX_IRQn);
+			NVIC_EnableIRQ(UART4_ERR_IRQn);
 			break;
 	case 5:
 			SIM->SCGC1 |= SIM_SCGC1_UART5(1);
 			NVIC_EnableIRQ(UART5_RX_TX_IRQn);
+			NVIC_EnableIRQ(UART5_ERR_IRQn);
 			break;
 	}
 
@@ -242,7 +246,7 @@ UART_Handle UART_Init(UART_Config* pConfig)
 	pUCR->C2 &= ~(UART_C2_TE_MASK | UART_C2_RE_MASK);
 
 	// Baud rate configuration
-	uint16_t sbr = (uint16_t)(((double)uart_module_clock / (double)pConfig->baudRate) - (double)pConfig->brfd/(double)32);
+	uint16_t sbr = (uint16_t)(((double)uart_module_clock / (double)(16*pConfig->baudRate)) - (double)pConfig->brfd/(double)32);
 
 	pUCR->BDH = (uint8_t)((0b0001111100000000 & sbr) >> 8);
 	pUCR->BDL = (uint8_t)(0b0000000011111111 & sbr);
@@ -251,8 +255,8 @@ UART_Handle UART_Init(UART_Config* pConfig)
 	// FIFO Configuration
 	pUCR->PFIFO |= UART_PFIFO_TXFE(1) | UART_PFIFO_RXFE(1);
 	pUCR->CFIFO |= UART_CFIFO_TXFLUSH(1) | UART_CFIFO_RXFLUSH(1);
-	pUART->rxFifoSize = MapFIFOSizeToBytes(UART_PFIFO_RXFIFOSIZE(pUCR->PFIFO));
-	pUART->txFifoSize = MapFIFOSizeToBytes(UART_PFIFO_TXFIFOSIZE(pUCR->PFIFO));
+	pUART->rxFifoSize = MapFIFOSizeToBytes((pUCR->PFIFO & UART_PFIFO_RXFIFOSIZE_MASK) >> UART_PFIFO_RXFIFOSIZE_SHIFT);
+	pUART->txFifoSize = MapFIFOSizeToBytes((pUCR->PFIFO & UART_PFIFO_TXFIFOSIZE_MASK) >> UART_PFIFO_TXFIFOSIZE_SHIFT);
 
 	// Buffer initialization
 	if (pUART->config.transmitBufferSize == 0)
@@ -277,6 +281,10 @@ UART_Handle UART_Init(UART_Config* pConfig)
 	return pConfig->uartNum;
 }
 
+uint16_t UART_PollNewData(UART_Handle handle)
+{
+	return modules[handle]->newDataByteSize;
+}
 
 char UART_GetChar(UART_Handle handle)
 {
@@ -314,14 +322,14 @@ bool UART_WriteData(UART_Handle handle, const uint8_t* pData, uint8_t size)
 	if (barrier >= pointer)
 	{
 		// Copy in two parts
-		uint8_t firstBatchSize = MIN(pUART->config.receiveBufferSize - barrier, size);
+		uint8_t firstBatchSize = MIN(pUART->config.transmitBufferSize - barrier, size);
 		memcpy(pUART->pTransmitBuffer + barrier, pData, firstBatchSize);
 
 		// Second Part
 		if (firstBatchSize < size)
 		{
 			uint8_t secondBatchSize = size - firstBatchSize;
-			memcpy(pUART->pTransmitBuffer, pData, secondBatchSize);
+			memcpy(pUART->pTransmitBuffer, pData + firstBatchSize, secondBatchSize);
 		}
 	}
 	else
@@ -334,6 +342,48 @@ bool UART_WriteData(UART_Handle handle, const uint8_t* pData, uint8_t size)
 
 	pUART->transmitting = 1;
 	UART_TransmitBuffer_Impl(handle);
+
+	return 1;
+}
+
+bool UART_WriteString(UART_Handle handle, const char* str)
+{
+	return UART_WriteData(handle, (uint8_t*)str, strlen(str));
+}
+
+bool UART_GetData(UART_Handle handle, uint8_t* pFillData, uint16_t* size, bool* err)
+{
+	UART* pUART = modules[handle];
+	if (!pUART->newData)
+		return 0;
+	// else
+
+	uint16_t pointer = pUART->receiveBufferPointer;
+	uint16_t newDataBytes = pUART->newDataByteSize;
+	int16_t offset = pointer - newDataBytes;
+
+	if (offset >= 0)
+	{
+		memcpy(pFillData, pUART->pReceiveBuffer + offset, newDataBytes);
+	}
+	else
+	{
+		// Copy "negative offset" part
+		memcpy(pFillData, pUART->pReceiveBuffer + (pUART->config.receiveBufferSize + offset), -offset);
+
+		// Copy other part
+		memcpy(pFillData - offset, pUART->pReceiveBuffer, newDataBytes + offset);
+	}
+
+	pUART->newData = 0;
+	*size = pUART->newDataByteSize;
+	pUART->newDataByteSize = 0;
+
+	if (pUART->receiverOverflow)
+	{
+		*err = 1;
+		pUART->receiverOverflow = 0;
+	}
 
 	return 1;
 }
